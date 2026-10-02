@@ -13,11 +13,11 @@
 <body>
 <div class="app">
 <section id="locationScreen" class="screen active"><div class="inner">
-  <div class="step">STEP 01 · LOCATION</div>
-  <h1 class="title">Where’s your<br>next night out?</h1>
-  <p class="copy">Pick one city, a few, or choose anywhere. We’ll only show you gigs that make sense for you.</p>
+  <div class="step">STEP 01 · YOUR FATE</div>
+  <h1 class="title">Where will fate<br>take you?</h1>
+  <p class="copy">Choose where your future night out might be. Pick one city, a few, or leave it entirely up to the cards.</p>
   <div id="cityGrid" class="cityGrid"><div class="empty">Loading locations…</div></div>
-  <button id="nextBtn" class="next">NEXT →</button>
+  <button id="nextBtn" class="next">NEXT → SEE YOUR FUTURE</button>
 </div></section>
 
 <section id="cardsScreen" class="screen"><div class="inner center">
@@ -46,13 +46,13 @@ const $=id=>document.getElementById(id);let shows=[],config={},settings={},selec
 const esc=s=>String(s??"").replace(/[&<>\"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'\"':"&quot;","'":"&#39;"}[c]));
 function today(){return new Date().toISOString().slice(0,10)}
 function fmt(d){return new Date(d+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}).toUpperCase()}
-function included(s){return config[String(s.id)]?.included!==false}
+function included(s){const row=config[String(s.id)];return !row || row.included!==false}
 function showScreen(id){document.querySelectorAll('.screen').forEach(x=>x.classList.remove('active'));$(id).classList.add('active');window.scrollTo(0,0)}
 async function track(type,x={}){try{await fetch(`${SB}/rest/v1/page_analytics`,{method:"POST",headers:{apikey:KEY,Authorization:`Bearer ${KEY}`,"Content-Type":"application/json",Prefer:"return=minimal"},body:JSON.stringify({page_name:"halloween",event_type:type,city:[...selectedCities].filter(x=>x!=="__anywhere__").join(", ")||"Anywhere",...x})})}catch(e){}}
-async function load(){try{const [r,c]=await Promise.all([fetch(`${SB}/rest/v1/shows?select=id,artist,city,event_date,ticket_url,image_url,venue_id,venues(name)&event_date=gte.${today()}&order=event_date.asc&limit=5000`,{headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}}),fetch(`${SB}/rest/v1/halloween_config?select=*`,{headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}})]);if(!r.ok)throw new Error(await r.text());shows=await r.json();const rows=c.ok?await c.json():[];config=Object.fromEntries(rows.map(x=>[String(x.show_id),x]));settings=config.__settings__||{};renderCities();renderDeck();track("page_view")}catch(e){$("cityGrid").innerHTML='<div class="empty">Shows couldn’t load right now.</div>'}}
-function renderCities(){const cities=[...new Set(shows.filter(included).map(x=>x.city).filter(Boolean))].sort();$("cityGrid").innerHTML=`<button class="cityBtn selected" data-city="__anywhere__">Anywhere</button>`+cities.map(c=>`<button class="cityBtn" data-city="${esc(c)}">${esc(c)}</button>`).join("")}
+async function load(){try{const [r,c]=await Promise.all([fetch(`${SB}/rest/v1/shows?select=id,artist,city,event_date,ticket_url,image_url,venue_id,venues(name)&event_date=gte.${today()}&order=event_date.asc&limit=5000`,{headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}}),fetch(`${SB}/rest/v1/halloween_config?select=*`,{headers:{apikey:KEY,Authorization:`Bearer ${KEY}`}})]);if(!r.ok)throw new Error(await r.text());shows=await r.json();const rows=c.ok?await c.json():[];config=Object.fromEntries(rows.map(x=>[String(x.show_id),x]));settings=config.__settings__||{};if(!settings.card_back_url){const art=rows.find(x=>x.card_back_url||x.card_front_url);if(art)settings={...settings,card_back_url:art.card_back_url||settings.card_back_url,card_front_url:art.card_front_url||settings.card_front_url}}renderCities();renderDeck();track("page_view")}catch(e){$("cityGrid").innerHTML='<div class="empty">Shows couldn’t load right now.</div>'}}
+function renderCities(){const cities=[...new Set(shows.filter(included).map(x=>x.city).filter(Boolean))].sort();$("cityGrid").innerHTML=`<button class="cityBtn selected" data-city="__anywhere__">ANYWHERE — LET FATE DECIDE</button>`+cities.map(c=>`<button class="cityBtn" data-city="${esc(c)}">${esc(c)}</button>`).join("")}
 function toggleCity(c,btn){if(c==="__anywhere__"){selectedCities=new Set([c])}else{selectedCities.delete("__anywhere__");selectedCities.has(c)?selectedCities.delete(c):selectedCities.add(c);if(!selectedCities.size)selectedCities.add("__anywhere__")}document.querySelectorAll('.cityBtn').forEach(b=>b.classList.toggle('selected',selectedCities.has(b.dataset.city)))}
-function backMarkup(){return settings.card_back_url?`<img class="backArt" src="${esc(settings.card_back_url)}" alt="">`:`<span class="fallbackBack">☾ ✦ ☽</span>`}
+function backMarkup(){const url=settings.card_back_url||Object.values(config).find(x=>x&&x.card_back_url)?.card_back_url||"";return url?`<img class="backArt" src="${esc(url)}" alt="" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'"><span class="fallbackBack" style="display:none">☾ ✦ ☽</span>`:`<span class="fallbackBack">☾ ✦ ☽</span>`}
 function renderDeck(){selectedCards=[];reading=[];$("deck").innerHTML=Array.from({length:6},(_,i)=>`<button class="pickCard" data-card="${i}" aria-label="Choose card ${i+1}"><span class="pickCardInner">${backMarkup()}</span></button>`).join("");$("pickHint").textContent="Choose 3 cards"}
 function pool(){let p=shows.filter(included);if(!selectedCities.has("__anywhere__"))p=p.filter(s=>selectedCities.has(s.city));return p}
 function chooseCard(btn){if(btn.classList.contains('selected')||selectedCards.length>=3)return;btn.classList.add('selected');selectedCards.push(btn.dataset.card);$("pickHint").textContent=selectedCards.length<3?`Choose ${3-selectedCards.length} more card${3-selectedCards.length===2?'s':''}`:"Reading your future…";if(selectedCards.length===3){const p=[...pool()].sort(()=>Math.random()-.5);reading=p.slice(0,3);track("game_start");setTimeout(reveal,300)}}
